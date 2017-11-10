@@ -2,42 +2,55 @@ package storage
 
 import (
 	"fmt"
-	"log"
-	"os"
 
+	config "github.com/arthurjames/kit/config/storage"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
+	"github.com/pkg/errors"
 )
 
 type Storage struct {
-	*gorm.DB
+	// Db holds a pointer that represents a pool of 0 or more
+	// connections.
+	Db  *gorm.DB
+	cfg config.StorageConfig
 }
 
-func New() (*Storage, error) {
-	dbhost := os.Getenv("DBHOST")
-	if dbhost != "" {
-		dbhost = fmt.Sprintf("host=%v ", dbhost)
+// Create new storage
+func NewStorage(options ...func(*config.StorageConfig)) (*Storage, error) {
+
+	var mgr Storage
+	for _, option := range options {
+		option(&mgr.cfg)
 	}
-	db, err := gorm.Open("postgres",
-		fmt.Sprintf("%vuser=admin password=changeme dbname=925 sslmode=disable", dbhost))
+
+	url := fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable",
+		mgr.cfg.Host, mgr.cfg.User, mgr.cfg.Password, mgr.cfg.Database)
+	db, err := gorm.Open(mgr.cfg.Driver, url)
+
 	if err != nil {
-		log.Fatalf("Error connecting to database: '%v'", err)
+		err = errors.Wrapf(err,
+			"Couldn't open connection to database (%s)",
+			spew.Sdump(mgr.cfg))
 		return nil, err
 	}
 
-	db.DB().SetMaxIdleConns(0) // See https://github.com/jinzhu/gorm/issues/246
-	db.DB().SetMaxOpenConns(100)
-	//	db.SetLogger(gorm.Logger{level.Trace})
-	db.LogMode(true)
-
-	// Configure any package-level settings
-	return &Storage{db}, nil
+	mgr.Db = db
+	return &mgr, nil
 }
 
-func (db *Storage) Close() {
-	db.Close()
+// Set max idle connections of connectionpool
+func (m *Storage) SetMaxIdleConns(v int) {
+	m.Db.DB().SetMaxIdleConns(v)
 }
 
-func (db *Storage) Migrate(values ...interface{}) {
-	db.AutoMigrate(values)
+// Set max open connections of connectionpool
+func (m *Storage) SetMaxOpenConns(v int) {
+	m.Db.DB().SetMaxOpenConns(v)
+}
+
+// Use gorm automigrate to create new tables and columns
+func (m *Storage) AutoMigrate(interfaces ...interface{}) {
+	m.Db.AutoMigrate(interfaces)
 }
