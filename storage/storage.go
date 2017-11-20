@@ -2,9 +2,11 @@ package storage
 
 import (
 	"fmt"
+	"strings"
 
 	config "github.com/arthurjames/kit/config/storage"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/fatih/structs"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/pkg/errors"
@@ -17,40 +19,79 @@ type Storage struct {
 	cfg config.StorageConfig
 }
 
-// Create new storage
 func NewStorage(options ...func(*config.StorageConfig)) (*Storage, error) {
 
-	var mgr Storage
+	var storage Storage
 	for _, option := range options {
-		option(&mgr.cfg)
+		option(&storage.cfg)
 	}
 
-	url := fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable",
-		mgr.cfg.Host, mgr.cfg.User, mgr.cfg.Password, mgr.cfg.Database)
-	db, err := gorm.Open(mgr.cfg.Driver, url)
+	db, err := gorm.Open(storage.cfg.Driver.String(), storage.connectString())
 
 	if err != nil {
 		err = errors.Wrapf(err,
 			"Couldn't open connection to database (%s)",
-			spew.Sdump(mgr.cfg))
+			spew.Sdump(storage.cfg))
 		return nil, err
 	}
+	defer db.Close()
 
-	mgr.Db = db
-	return &mgr, nil
+	storage.Db = db
+	return &storage, nil
 }
 
-// Set max idle connections of connectionpool
-func (m *Storage) SetMaxIdleConns(v int) {
-	m.Db.DB().SetMaxIdleConns(v)
+// Get underlying `*sql.DB` from current connection and try to ping it
+func (st *Storage) IsOpen() bool {
+	db := st.Db.DB()
+	if err := db.Ping(); err != nil {
+		return false
+	}
+	return true
 }
 
-// Set max open connections of connectionpool
-func (m *Storage) SetMaxOpenConns(v int) {
-	m.Db.DB().SetMaxOpenConns(v)
+func (st *Storage) Close() {
+	st.Db.Close()
 }
 
-// Use gorm automigrate to create new tables and columns
-func (m *Storage) AutoMigrate(interfaces ...interface{}) {
-	m.Db.AutoMigrate(interfaces)
+func (st *Storage) connectString() string {
+	s := structs.New(st.cfg)
+	str := []string{}
+	for _, name := range s.Names() {
+		field := s.Field(name)
+		if !field.IsZero() && name != "Driver" {
+			str = append(str, fmt.Sprintf("%s=%s", strings.ToLower(name), field.Value()))
+		}
+	}
+	return strings.Join(str, " ")
 }
+
+//func (ds *Datastore) Migrate(values ...interface{}) {
+//	ds.Db.AutoMigrate(values)
+//}
+//
+//func MaxIdleConns(v int) Option {
+//	return func(p *Storage) {
+//		p.Db.SetMaxIdleConns(v)
+//	}
+//}
+//
+//func MaxOpenConns(v int) Option {
+//	return func(p *Storage) {
+//		p.Db.SetMaxOpenConns(v)
+//	}
+//}
+//
+//func LogMode(b bool) Option {
+//	return func(p *Storage) {
+//		p.Db.LogMode(b)
+//	}
+//}
+//
+//type StorageDriver interface {
+//	New(string) StorageManager
+//	RegisterDriver(string)
+//}
+//
+//var drivers = []Storage{{Name: "postgresql",
+//	Path: "github.com/jinzhu/gorm/dialects/postgres"}}
+//

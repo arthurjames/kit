@@ -1,9 +1,14 @@
 package storage
 
+import (
+	"github.com/arthurjames/kit/config"
+)
+
 type StorageConfig struct {
-	Host     string
-	User     string
-	Password string
-	Database string
-	Driver   string
+	Host     config.StringOption
+	User     config.StringOption
+	Password config.StringOption
+	Dbname   config.StringOption
+	Driver   config.StringOption
+	SSLMode  config.EnabledOption
 }
