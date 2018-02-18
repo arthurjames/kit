@@ -19,14 +19,11 @@ type Storage struct {
 	cfg config.StorageConfig
 }
 
-func NewStorage(options ...func(*config.StorageConfig)) (*Storage, error) {
+func NewStorage(cfg config.StorageConfig) (*Storage, error) {
 
-	var storage Storage
-	for _, option := range options {
-		option(&storage.cfg)
-	}
+	storage := Storage{cfg: cfg}
 
-	db, err := gorm.Open(storage.cfg.Driver.String(), storage.connectString())
+	db, err := gorm.Open(cfg.Driver, storage.connectString())
 
 	if err != nil {
 		err = errors.Wrapf(err,
@@ -58,6 +55,7 @@ func (st *Storage) connectString() string {
 	str := []string{}
 	for _, name := range s.Names() {
 		field := s.Field(name)
+
 		if !field.IsZero() && name != "Driver" {
 			str = append(str, fmt.Sprintf("%s=%s", strings.ToLower(name), field.Value()))
 		}

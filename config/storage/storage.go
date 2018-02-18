@@ -1,14 +1,10 @@
 package storage
 
-import (
-	"github.com/arthurjames/kit/config"
-)
-
 type StorageConfig struct {
-	Host     config.StringOption
-	User     config.StringOption
-	Password config.StringOption
-	Dbname   config.StringOption
-	Driver   config.StringOption
-	SSLMode  config.EnabledOption
+	Host     string `default:"localhost"`
+	User     string `default:"postgres"`
+	Password string `default:"changeme"`
+	Dbname   string `default:"postgres"`
+	Driver   string `default:"postgres"`
+	SSLMode  string `default:"disable"`
 }
