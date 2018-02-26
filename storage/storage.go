@@ -1,57 +1,54 @@
 package storage
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 
 	config "github.com/arthurjames/kit/config/storage"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structs"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/postgres"
+	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 )
 
+// Storage holds a pointer that represents a pool of 0 or more
+// connections.
 type Storage struct {
-	// Db holds a pointer that represents a pool of 0 or more
-	// connections.
-	Db  *gorm.DB
-	cfg config.StorageConfig
+	*sql.DB
 }
 
+// Open storage
 func NewStorage(cfg config.StorageConfig) (*Storage, error) {
 
-	storage := Storage{cfg: cfg}
-
-	db, err := gorm.Open(cfg.Driver, storage.connectString())
+	db, err := sql.Open(cfg.Driver, connectString(cfg))
 
 	if err != nil {
 		err = errors.Wrapf(err,
 			"Couldn't open connection to database (%s)",
-			spew.Sdump(storage.cfg))
+			spew.Sdump(cfg))
 		return nil, err
 	}
-	defer db.Close()
 
-	storage.Db = db
-	return &storage, nil
+	return &Storage{db}, nil
 }
 
 // Get underlying `*sql.DB` from current connection and try to ping it
-func (st *Storage) IsOpen() bool {
-	db := st.Db.DB()
-	if err := db.Ping(); err != nil {
-		return false
+func (st *Storage) IsOpen() (bool, error) {
+	if err := st.Ping(); err != nil {
+		return false, err
 	}
-	return true
+	return true, nil
 }
 
+// Close open database connection
 func (st *Storage) Close() {
 	st.Db.Close()
 }
 
-func (st *Storage) connectString() string {
-	s := structs.New(st.cfg)
+// Generate PostgreSQL connectstring
+func connectString(cfg config.StorageConfig) string {
+	s := structs.New(cfg)
 	str := []string{}
 	for _, name := range s.Names() {
 		field := s.Field(name)
@@ -66,7 +63,6 @@ func (st *Storage) connectString() string {
 //func (ds *Datastore) Migrate(values ...interface{}) {
 //	ds.Db.AutoMigrate(values)
 //}
-//
 //func MaxIdleConns(v int) Option {
 //	return func(p *Storage) {
 //		p.Db.SetMaxIdleConns(v)
