@@ -43,7 +43,7 @@ func (st *Storage) IsOpen() (bool, error) {
 
 // Close open database connection
 func (st *Storage) Close() {
-	st.Db.Close()
+	st.DB.Close()
 }
 
 // Generate PostgreSQL connectstring
