@@ -1,32 +1,28 @@
 package storage
 
 import (
-	"fmt"
+	"reflect"
 	"testing"
 
 	config "github.com/arthurjames/kit/config/storage"
-	"github.com/kelseyhightower/envconfig"
 )
 
 var store *Storage
-var err error
-var storageCfg config.StorageConfig
 
 func setup(t *testing.T) func(t *testing.T) {
 	t.Log("setup test case")
 
-	err := envconfig.Process("storage", &storageCfg)
+	cfg, err := config.NewConfig()
 	if err != nil {
-		t.Fatal("reading config failed: " + err.Error())
+		t.Fatal("Creating config failed: " + err.Error())
 	}
 
-	store, err = NewStorage(storageCfg)
+	store, err = NewStorage(cfg)
 	if err != nil {
 		t.Fatal(err)
 	} else if store == nil {
 		t.Fatal("expected db")
 	}
-	defer store.Close()
 
 	return func(t *testing.T) {
 		store.Close()
@@ -44,8 +40,8 @@ func TestIsOpen(t *testing.T) {
 	f := setup(t)
 	defer f(t)
 
-	if db, _ := store.IsOpen(); db {
-		t.Fatal("created db is not accessible")
+	if _, err := store.IsOpen(); err != nil {
+		t.Fatalf("created db is not accessible: %s", err)
 	} else {
 		t.Log("created db is accessible")
 	}
@@ -58,30 +54,20 @@ func TestClose(t *testing.T) {
 
 	store.Close()
 
-	if err := store.Ping(); err == nil {
-		t.Fatal("after closing db should not be accessible")
+	if err := store.DB.Ping(); err != nil {
+		t.Log(err.Error())
 	} else {
-		t.Log("after closing db is not accessible")
+		t.Fatal("after closing db should not be accessible")
 	}
 }
 
-func TestConnectString(t *testing.T) {
+func TestBegin(t *testing.T) {
 	f := setup(t)
 	defer f(t)
 
-	if err != nil {
-		t.Fatal("fail")
-	}
-
-	if connectString(storageCfg) == fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=%s",
-		storageCfg.Host,
-		storageCfg.User,
-		storageCfg.Password,
-		storageCfg.Dbname,
-		storageCfg.SSLMode,
-	) {
-		t.Log("connectstring is correct")
+	if tx, err := store.Begin(); err != nil {
+		t.Fatalf("fail: %s", err)
 	} else {
-		t.Fatal("connectstring is incorrect")
+		t.Logf("transaction type: %s", reflect.TypeOf(tx))
 	}
 }
