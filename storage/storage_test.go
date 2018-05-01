@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"reflect"
 	"testing"
 
 	config "github.com/arthurjames/kit/config/storage"
@@ -58,16 +57,5 @@ func TestClose(t *testing.T) {
 		t.Log(err.Error())
 	} else {
 		t.Fatal("after closing db should not be accessible")
-	}
-}
-
-func TestBegin(t *testing.T) {
-	f := setup(t)
-	defer f(t)
-
-	if tx, err := store.Begin(); err != nil {
-		t.Fatalf("fail: %s", err)
-	} else {
-		t.Logf("transaction type: %s", reflect.TypeOf(tx))
 	}
 }

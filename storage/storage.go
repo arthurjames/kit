@@ -15,6 +15,18 @@ type Storage struct {
 	*sql.DB
 }
 
+// Transaction models the standard transaction in database/sql.
+type Transaction interface {
+	Exec(query string, args ...interface{}) (sql.Result, error)
+	Prepare(query string) (*sql.Stmt, error)
+	Query(query string, args ...interface{}) (*sql.Rows, error)
+	QueryRow(query string, args ...interface{}) *sql.Row
+}
+
+// A Txfn is a function that will be called with an initialized `Transaction` object
+// that can be used for executing statements and queries against a database.
+type TxFn func(Transaction) error
+
 // Open new storage.
 func NewStorage(cfg *config.StorageConfig) (*Storage, error) {
 	db, err := sql.Open(cfg.Driver, cfg.ConnectString())
@@ -42,12 +54,40 @@ func (st *Storage) Close() {
 }
 
 // Begin starts and returns a new transaction.
-func (st *Storage) Begin() (*sql.Tx, error) {
+//func (st *Storage) Begin() (*sql.Tx, error) {
+//	tx, err := st.DB.Begin()
+//	if err != nil {
+//		return nil, err
+//	}
+//	return tx, nil
+//}
+//
+
+// WithTransaction creates a new transaction and handles rollback/commit based on the
+// error object returned by the `TxFn`
+func (st *Storage) WithTransaction(fn TxFn) (err error) {
 	tx, err := st.DB.Begin()
 	if err != nil {
-		return nil, err
+		return
 	}
-	return tx, nil
+
+	defer func() {
+		if p := recover(); p != nil {
+			// a panic occurred, rollback
+			tx.Rollback()
+			// rethrow panic
+			panic(p)
+		} else if err != nil {
+			// something went wrong, rollback
+			tx.Rollback()
+		} else {
+			// all good, commit
+			err = tx.Commit()
+		}
+	}()
+
+	err = fn(tx)
+	return err
 }
 
 // SetMaxOpenConns sets the maximum number of open connections to the db.
